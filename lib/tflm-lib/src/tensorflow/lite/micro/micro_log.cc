@@ -21,6 +21,7 @@ limitations under the License.
 #if !defined(TF_LITE_STRIP_ERROR_STRINGS)
 #include "tensorflow/lite/micro/debug_log.h"
 #endif
+#include "Arduino.h"
 
 #if !defined(TF_LITE_STRIP_ERROR_STRINGS)
 namespace {
@@ -38,6 +39,11 @@ void VMicroPrintf(const char* format, va_list args) {
   DebugLog(format, args);
   // TODO(b/290051015): remove "\r\n"
   VDebugLog("\r\n");
+  char buffer[256]; // Adjust the buffer size as needed
+  vsnprintf(buffer, sizeof(buffer), format, args);
+  Serial.print(buffer);
+  // TODO(b/290051015): remove "\r\n"
+  Serial.println();
 }
 
 void MicroPrintf(const char* format, ...) {

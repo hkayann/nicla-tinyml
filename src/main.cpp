@@ -1,13 +1,14 @@
 #include <math.h>
-#include "tensorflow/lite/core/c/common.h"
+// #include "tensorflow/lite/core/c/common.h"
 #include "model.h"
 #include "tensorflow/lite/micro/micro_interpreter.h"
-#include "tensorflow/lite/micro/micro_log.h"
 #include "tensorflow/lite/micro/micro_mutable_op_resolver.h"
-#include "tensorflow/lite/micro/micro_profiler.h"
-#include "tensorflow/lite/micro/recording_micro_interpreter.h"
+// #include "tensorflow/lite/micro/micro_profiler.h"
+// #include "tensorflow/lite/micro/recording_micro_interpreter.h"
+#include "tensorflow/lite/micro/tflite_bridge/micro_error_reporter.h"
 #include "tensorflow/lite/micro/system_setup.h"
 #include "tensorflow/lite/schema/schema_generated.h"
+#include "tensorflow/lite/micro/micro_log.h"
 #include "Arduino_BHY2.h"
 #include "Nicla_System.h"
 
@@ -34,11 +35,11 @@ const tflite::Model* model = nullptr;
 tflite::MicroInterpreter* interpreter = nullptr;
 TfLiteTensor* input = nullptr;
 TfLiteTensor* output = nullptr;
-int inference_count = 0;
+// int inference_count = 0;
 
 // Arena size just a round number. The exact arena usage can be determined
 // using the RecordingMicroInterpreter.
-constexpr int kTensorArenaSize = 4000; // in bytes;
+constexpr int kTensorArenaSize = 15000; // in bytes;
 // Keep aligned to 16 bytes for CMSIS
 alignas(16) uint8_t tensor_arena[kTensorArenaSize];
 }  // namespace
@@ -46,8 +47,13 @@ alignas(16) uint8_t tensor_arena[kTensorArenaSize];
 void setup() {
   nicla::begin();
   nicla::leds.begin();
-  Serial.begin(9600);
+  Serial.begin(115200);
   while(!Serial);
+  Serial.println("Enabling error reporter...");
+  // set up the error reporter
+	static tflite::MicroErrorReporter micro_error_reporter;
+	tflite::ErrorReporter* error_reporter = &micro_error_reporter;
+  Serial.println("Error reported enabled.");
   Serial.println("Initializing ML model...");
   tflite::InitializeTarget();
   Serial.println("TFlite initialized successfully!");
@@ -71,21 +77,28 @@ void setup() {
   // This pulls in all the operation implementations we need.
   // NOLINTNEXTLINE(runtime-global-variables)
   Serial.println("Pulling all operations...");
-  static tflite::MicroMutableOpResolver<2> op_resolver;
-  op_resolver.AddFullyConnected();
-  op_resolver.AddFullyConnected();
-  tflite::MicroProfiler profiler;
+  static tflite::MicroMutableOpResolver<6> resolver;
+  // // // op_resolver.AddConv2D();
+  // // // op_resolver.AddMaxPool2D();
+  // resolver.AddPack();
+  resolver.AddReshape();
+  // resolver.AddShape();
+  // resolver.AddStridedSlice();
+  resolver.AddFullyConnected();
+  resolver.AddRelu();
+  // tflite::MicroProfiler profiler;
   Serial.println("Operations/layers are pulled and set.");
   
   // Build an interpreter to run the model with
   static tflite::MicroInterpreter static_interpreter(
-      model, op_resolver, tensor_arena, kTensorArenaSize);
+      model, resolver, tensor_arena, kTensorArenaSize);
   interpreter = &static_interpreter;
   Serial.println("Interpreter is built.");
   
   // Allocate memory from the tensor_arena for the model's tensors.
   TfLiteStatus allocate_status = interpreter->AllocateTensors();
   if (allocate_status != kTfLiteOk) {
+    TF_LITE_REPORT_ERROR(error_reporter, "Tensor allocation failed");
     Serial.println("AllocateTensors() failed.");
     Serial.println(allocate_status);
     return;
@@ -93,17 +106,19 @@ void setup() {
     Serial.println("AllocateTensors() successed.");
   }
 
-  TFLITE_CHECK_EQ((*interpreter).inputs_size(), 1);
-  //(*interpreter).input(0)->data.f[0] = 1.f;
   // Print out the input tensor's details to verify
 	// the model is working as expected
   // Obtain pointers to the model's input and output tensors.
 	input = interpreter->input(0);
   output = interpreter->output(0);
-	Serial.print("Input size: ");
+	Serial.print("Input # dimensions: ");
 	Serial.println(input->dims->size);
 	Serial.print("Input bytes: ");
 	Serial.println(input->bytes);
+  Serial.print("Output # dimensions: ");
+  Serial.println(output->dims->size);
+	Serial.print("Output bytes: ");
+  Serial.println(output->bytes);
   for (int i = 0; i < input->dims->size; i++) {
 		Serial.print("Input dim ");
 		Serial.print(i);
@@ -119,13 +134,12 @@ void setup() {
 }
 
 void loop() {
-  nicla::leds.setColor(blue);
+  Serial.println("Setting LED to green.");
+  nicla::leds.setColor(green);
   delay(1000);
-  
-  // Dimensions are (1, 1).
+  // Dimensions are (1, 45, 1).
   // Set the input data.
-  float input_data[1*1] = {0.1};
-  input_data[0] = input_data[0] + 0.1;
+  float input_data[45*1] = {1};
   // Copy the data into the input tensor
 	for (int i = 0; i < input->bytes; i++) {
 		input->data.f[i] = input_data[i];
@@ -139,8 +153,14 @@ void loop() {
 		Serial.println("Invoke completed!");
 	}
   // Print the output data
-  float output_data = output->data.f[0];
-  Serial.println(output_data);
+  for (int i = 0; i < output->dims->data[1]; i++) {
+      float output_data = output->data.f[i];
+      Serial.print("Feature ");
+      Serial.print(i);
+      Serial.print(": ");
+      Serial.println(output_data);
+  }
+  Serial.println("Setting LED to red.");
   nicla::leds.setColor(red);
   delay(1000);
 }
