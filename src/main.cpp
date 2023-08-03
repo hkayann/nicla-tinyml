@@ -39,7 +39,7 @@ TfLiteTensor* output = nullptr;
 
 // Arena size just a round number. The exact arena usage can be determined
 // using the RecordingMicroInterpreter.
-constexpr int kTensorArenaSize = 15000; // in bytes;
+constexpr int kTensorArenaSize = 20000; // in bytes;
 // Keep aligned to 16 bytes for CMSIS
 alignas(16) uint8_t tensor_arena[kTensorArenaSize];
 }  // namespace
@@ -78,7 +78,9 @@ void setup() {
   // NOLINTNEXTLINE(runtime-global-variables)
   Serial.println("Pulling all operations...");
   static tflite::MicroMutableOpResolver<6> resolver;
-  // // // op_resolver.AddConv2D();
+  resolver.AddConv2D();
+  resolver.AddExpandDims();
+  resolver.AddMaxPool2D();
   // // // op_resolver.AddMaxPool2D();
   // resolver.AddPack();
   resolver.AddReshape();
