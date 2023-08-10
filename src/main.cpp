@@ -5,7 +5,7 @@
 #include "tensorflow/lite/micro/micro_mutable_op_resolver.h"
 // #include "tensorflow/lite/micro/micro_profiler.h"
 // #include "tensorflow/lite/micro/recording_micro_interpreter.h"
-#include "tensorflow/lite/micro/tflite_bridge/micro_error_reporter.h"
+// #include "tensorflow/lite/micro/tflite_bridge/micro_error_reporter.h"
 #include "tensorflow/lite/micro/system_setup.h"
 #include "tensorflow/lite/schema/schema_generated.h"
 #include "tensorflow/lite/micro/micro_log.h"
@@ -51,8 +51,8 @@ void setup() {
   while(!Serial);
   Serial.println("Enabling error reporter...");
   // set up the error reporter
-	static tflite::MicroErrorReporter micro_error_reporter;
-	tflite::ErrorReporter* error_reporter = &micro_error_reporter;
+	// static tflite::MicroErrorReporter micro_error_reporter;
+	// tflite::ErrorReporter* error_reporter = &micro_error_reporter;
   Serial.println("Error reported enabled.");
   Serial.println("Initializing ML model...");
   tflite::InitializeTarget();
@@ -100,7 +100,7 @@ void setup() {
   // Allocate memory from the tensor_arena for the model's tensors.
   TfLiteStatus allocate_status = interpreter->AllocateTensors();
   if (allocate_status != kTfLiteOk) {
-    TF_LITE_REPORT_ERROR(error_reporter, "Tensor allocation failed");
+    // TF_LITE_REPORT_ERROR(error_reporter, "Tensor allocation failed");
     Serial.println("AllocateTensors() failed.");
     Serial.println(allocate_status);
     return;
@@ -135,10 +135,19 @@ void setup() {
 	}
 }
 
+int incomingByte = 0;
+
 void loop() {
   Serial.println("Setting LED to green.");
   nicla::leds.setColor(green);
-  delay(1000);
+  if (Serial.available() > 0) {
+    // read the incoming byte:
+    incomingByte = Serial.read();
+
+    // say what you got:
+    Serial.print("I received: ");
+    Serial.println(incomingByte, DEC);
+  }
   // Dimensions are (1, 45, 1).
   // Set the input data.
   float input_data[45*1] = {1};
